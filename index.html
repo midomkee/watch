@@ -42,11 +42,9 @@
     <div id="status">جاري الاتصال بالسيرفر...</div>
 
     <div id="videoContainer">
-        <!-- عنصر عرض فيديو التاب والصوت -->
         <video id="remoteVideo" autoplay playsinline controls></video>
     </div>
 
-    <!-- تضمين مكتبة Socket.io -->
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
         const SERVER_URL = "https://signaling-server-1-zu27.onrender.com/";
@@ -70,11 +68,13 @@
                 if (data.type === "offer") {
                     statusDiv.innerText = "تم استقبال العرض (Offer) من التاب، جاري ربط الاتصال...";
                     
-                    if (!peerConnection) {
-                        createPeerConnection();
+                    // إعادة إنشاء الاتصال لتنظيف أي بيانات قديمة لمنع خطأ mid=0
+                    if (peerConnection) {
+                        peerConnection.close();
+                        peerConnection = null;
                     }
+                    createPeerConnection();
                     
-                    // ضبط الوصف البعيد للـ Offer وتجنب مشاكل التنسيق
                     await peerConnection.setRemoteDescription(new RTCSessionDescription({
                         type: "offer",
                         sdp: data.sdp
@@ -100,7 +100,7 @@
                 }
             } catch (e) {
                 console.error("Error handling signaling message:", e);
-                statusDiv.innerText = "خطأ في الاتصال: " + e.message;
+                statusDiv.innerText = "خطأ: " + e.message;
             }
         });
 
