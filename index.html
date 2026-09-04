@@ -39,17 +39,16 @@
 <body>
 
     <h1>لوحة المراقبة الأبوية المباشرة</h1>
-    <div id="status">جاري الاتصال بسيرفر الإشارات...</div>
+    <div id="status">جاري الاتصال بالسيرفر...</div>
 
     <div id="videoContainer">
         <!-- عنصر عرض فيديو التاب والصوت -->
         <video id="remoteVideo" autoplay playsinline controls></video>
     </div>
 
-    <!-- تضمين مكتبة Socket.io للاتصال بالسيرفر -->
+    <!-- تضمين مكتبة Socket.io -->
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
-        // رابط السيرفر الخاص بك على Render
         const SERVER_URL = "https://signaling-server-1-zu27.onrender.com/";
         const socket = io(SERVER_URL);
 
@@ -57,7 +56,6 @@
         const remoteVideo = document.getElementById("remoteVideo");
 
         let peerConnection;
-        // خادم STUN لمعالجة الشبكات
         const rtcConfig = {
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
         };
@@ -67,14 +65,16 @@
             console.log("Connected to signaling server");
         });
 
-        // استقبال الرسائل (Offer أو Candidate) القادمة من التاب عبر السيرفر
         socket.on("message", async (data) => {
             try {
                 if (data.type === "offer") {
                     statusDiv.innerText = "تم استقبال العرض (Offer) من التاب، جاري ربط الاتصال...";
                     
-                    createPeerConnection();
+                    if (!peerConnection) {
+                        createPeerConnection();
+                    }
                     
+                    // ضبط الوصف البعيد للـ Offer وتجنب مشاكل التنسيق
                     await peerConnection.setRemoteDescription(new RTCSessionDescription({
                         type: "offer",
                         sdp: data.sdp
@@ -83,37 +83,38 @@
                     const answer = await peerConnection.createAnswer();
                     await peerConnection.setLocalDescription(answer);
 
-                    // إرسال الـ Answer للتاب عبر السيرفر
                     socket.emit("message", {
                         type: "answer",
                         sdp: answer.sdp
                     });
                     
-                    statusDiv.innerText = "تم بث الكاميرا والصوت بنجاح!";
+                    statusDiv.innerText = "جاري بث الكاميرا والصوت...";
                 } else if (data.type === "candidate" && peerConnection) {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate({
-                        candidate: data.candidate,
-                        sdpMid: data.sdpMid,
-                        sdpMLineIndex: data.sdpMLineIndex
-                    }));
+                    if (peerConnection.remoteDescription) {
+                        await peerConnection.addIceCandidate(new RTCIceCandidate({
+                            candidate: data.candidate,
+                            sdpMid: data.sdpMid,
+                            sdpMLineIndex: data.sdpMLineIndex
+                        }));
+                    }
                 }
             } catch (e) {
                 console.error("Error handling signaling message:", e);
+                statusDiv.innerText = "خطأ في الاتصال: " + e.message;
             }
         });
 
         function createPeerConnection() {
             peerConnection = new RTCPeerConnection(rtcConfig);
 
-            // عند استقبال مسارات الفيديو أو الصوت من التاب
             peerConnection.ontrack = (event) => {
                 console.log("Received remote track:", event.streams[0]);
+                statusDiv.innerText = "تم عرض البث بنجاح!";
                 if (remoteVideo.srcObject !== event.streams[0]) {
                     remoteVideo.srcObject = event.streams[0];
                 }
             };
 
-            // إرسال الـ ICE Candidates للتاب
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
                     socket.emit("message", {
