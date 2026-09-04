@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة مراقبة التاب - Parental Control Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            text-align: center;
+            padding: 20px;
+        }
+        h1 {
+            color: #00bcd4;
+        }
+        #videoContainer {
+            margin: 20px auto;
+            width: 800px;
+            max-width: 100%;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        #status {
+            font-size: 18px;
+            margin-top: 10px;
+            color: #ff9800;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>لوحة المراقبة الأبوية المباشرة</h1>
+    <div id="status">جاري الاتصال بسيرفر الإشارات...</div>
+
+    <div id="videoContainer">
+        <!-- عنصر عرض فيديو التاب والصوت -->
+        <video id="remoteVideo" autoplay playsinline controls></video>
+    </div>
+
+    <!-- تضمين مكتبة Socket.io للاتصال بالسيرفر -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        // رابط السيرفر الخاص بك على Render
+        const SERVER_URL = "https://signaling-server-1-zu27.onrender.com/";
+        const socket = io(SERVER_URL);
+
+        const statusDiv = document.getElementById("status");
+        const remoteVideo = document.getElementById("remoteVideo");
+
+        let peerConnection;
+        // خادم STUN لمعالجة الشبكات
+        const rtcConfig = {
+            iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+        };
+
+        socket.on("connect", () => {
+            statusDiv.innerText = "متصل بالسيرفر بنجاح. في انتظار بث التاب...";
+            console.log("Connected to signaling server");
+        });
+
+        // استقبال الرسائل (Offer أو Candidate) القادمة من التاب عبر السيرفر
+        socket.on("message", async (data) => {
+            try {
+                if (data.type === "offer") {
+                    statusDiv.innerText = "تم استقبال العرض (Offer) من التاب، جاري ربط الاتصال...";
+                    
+                    createPeerConnection();
+                    
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription({
+                        type: "offer",
+                        sdp: data.sdp
+                    }));
+
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+
+                    // إرسال الـ Answer للتاب عبر السيرفر
+                    socket.emit("message", {
+                        type: "answer",
+                        sdp: answer.sdp
+                    });
+                    
+                    statusDiv.innerText = "تم بث الكاميرا والصوت بنجاح!";
+                } else if (data.type === "candidate" && peerConnection) {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate({
+                        candidate: data.candidate,
+                        sdpMid: data.sdpMid,
+                        sdpMLineIndex: data.sdpMLineIndex
+                    }));
+                }
+            } catch (e) {
+                console.error("Error handling signaling message:", e);
+            }
+        });
+
+        function createPeerConnection() {
+            peerConnection = new RTCPeerConnection(rtcConfig);
+
+            // عند استقبال مسارات الفيديو أو الصوت من التاب
+            peerConnection.ontrack = (event) => {
+                console.log("Received remote track:", event.streams[0]);
+                if (remoteVideo.srcObject !== event.streams[0]) {
+                    remoteVideo.srcObject = event.streams[0];
+                }
+            };
+
+            // إرسال الـ ICE Candidates للتاب
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit("message", {
+                        type: "candidate",
+                        candidate: event.candidate.candidate,
+                        sdpMid: event.candidate.sdpMid,
+                        sdpMLineIndex: event.candidate.sdpMLineIndex
+                    });
+                }
+            };
+        }
+    </script>
+</body>
+</html>
