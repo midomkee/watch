@@ -827,45 +827,21 @@ document
     // SOCKET CONNECTED
     // ==============================
 
-    socket.on(
-        "connect",
-        () => {
+    socket.on("connect",()=>{
+    socket.emit("join",{
+        room:id,
+        role:"viewer"
+    });
 
-            console.log(
-                "Socket connected:",
-                socket.id
-            );
+    setStatus("متصل بالسيرفر؛ في انتظار التاب...");
+});socket.on("connect",()=>{
+    socket.emit("join",{
+        room:id,
+        role:"viewer"
+    });
 
-
-            connected = true;
-
-
-            /*
-             * مهم جداً:
-             *
-             * server.js يقبل room
-             */
-
-            socket.emit(
-                "join",
-                {
-                    room: id,
-                    role: "viewer"
-                }
-            );
-
-
-            console.log(
-                "Joined room:",
-                id
-            );
-
-
-            setStatus(
-                "✅ متصل بالسيرفر؛ في انتظار التابلت..."
-            );
-        }
-    );
+    setStatus("متصل بالسيرفر؛ في انتظار التاب...");
+});
 
 
     // ==============================
