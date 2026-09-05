@@ -827,48 +827,33 @@ document
     // SOCKET CONNECTED
     // ==============================
 
-    socket.on("connect",()=>{
+    socket=io(
+    "https://signaling-server-1-zu27.onrender.com/",
+    {
+        transports:["websocket"]
+    }
+);
+
+socket.on("connect",()=>{
+
     socket.emit("join",{
         room:id,
         role:"viewer"
     });
 
-    setStatus("متصل بالسيرفر؛ في انتظار التاب...");
-});socket.on("connect",()=>{
-    socket.emit("join",{
-        room:id,
-        role:"viewer"
-    });
-
-    setStatus("متصل بالسيرفر؛ في انتظار التاب...");
+    setStatus(
+        "متصل بالسيرفر؛ في انتظار التاب..."
+    );
 });
 
+socket.on("message",handleMessage);
 
-    // ==============================
-    // SIGNALING
-    // ==============================
+socket.on("disconnect",()=>{
 
-    socket.on(
-        "message",
-        handleMessage
+    setStatus(
+        "انقطع اتصال السيرفر"
     );
-
-
-    // ==============================
-    // DISCONNECT
-    // ==============================
-
-    socket.on(
-        "disconnect",
-        () => {
-
-            connected = false;
-
-            setStatus(
-                "❌ انقطع اتصال السيرفر"
-            );
-        }
-    );
+});
 
 
     // ==============================
