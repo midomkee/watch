@@ -9,6 +9,7 @@
 body { font-family: Arial, sans-serif; margin: 0; background: #111; color: #eee; }
 header { padding: 14px; background: #1b1b1b; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 input, button { padding: 10px; border-radius: 8px; border: 1px solid #555; font-size: 15px; }
+input { flex: 1; min-width: 200px; max-width: 300px; }
 button { cursor: pointer; background: #00bcd4; color: #fff; font-weight: bold; border: none; transition: 0.3s; }
 button:hover { background: #008ba3; }
 #status { padding: 12px; background: #222; border-bottom: 1px solid #333; color: #ff9800; font-weight: bold; }
@@ -24,7 +25,8 @@ video { width: 100%; background: #000; border-radius: 10px; display: block; }
 <body>
 
 <header>
-    <input id="deviceId" placeholder="Device ID" value="tablet-a7-01">
+    <!-- تم إزالة الـ value هنا لزيادة الأمان -->
+    <input id="deviceId" placeholder="أدخل الكود السري للتابلت..." value="">
     <button id="connect">اتصال وبدء المراقبة</button>
 </header>
 
@@ -33,7 +35,6 @@ video { width: 100%; background: #000; border-radius: 10px; display: block; }
 <div class="grid">
     <div class="box">
         <h3>الشاشة</h3>
-        <!-- الفيديو صامت هنا لأن الصوت هيشتغل من عنصر الـ audio المخصص تحت -->
         <video id="screenVideo" autoplay playsinline muted></video>
     </div>
     <div class="box">
@@ -152,9 +153,8 @@ async function handleMessage(data) {
 
 document.getElementById("connect").onclick = () => {
     const id = document.getElementById("deviceId").value.trim();
-    if (!id) return alert("اكتب Device ID");
+    if (!id) return alert("اكتب الكود السري للتابلت أولاً");
 
-    // فك حظر المتصفح للصوت والفيديو بمجرد النقرة على زر الاتصال
     [remoteAudio, screenVideo, cameraVideo].forEach(media => {
         media.play().catch(e => console.log("تم تهيئة الميديا للاشتغال التلقائي"));
     });
@@ -166,7 +166,7 @@ document.getElementById("connect").onclick = () => {
 
     socket.on("connect", () => {
         socket.emit("join", { room: id, role: "viewer" });
-        socket.emit("message", { type: "viewer-ready" }); // إشعار التابلت للبدء
+        socket.emit("message", { type: "viewer-ready" });
         setStatus("متصل بالسيرفر؛ في انتظار التاب...");
     });
 
