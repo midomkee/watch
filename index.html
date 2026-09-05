@@ -1,919 +1,180 @@
 <!doctype html>
-
 <html lang="ar" dir="rtl">
-
 <head>
-
 <meta charset="utf-8">
-
-<meta
-    name="viewport"
-    content="width=device-width,initial-scale=1"
->
-
-<title>لوحة المراقبة</title>
-
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>لوحة المراقبة الأبوية</title>
 <style>
-
-* {
-    box-sizing: border-box;
-}
-
-body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    background: #111;
-    color: #eee;
-}
-
-header {
-    padding: 14px;
-    background: #1b1b1b;
-
-    display: flex;
-    gap: 8px;
-
-    align-items: center;
-
-    flex-wrap: wrap;
-}
-
-input,
-button {
-
-    padding: 10px;
-
-    border-radius: 8px;
-
-    border: 1px solid #555;
-
-    font-size: 15px;
-}
-
-button {
-    cursor: pointer;
-}
-
-#status {
-
-    padding: 12px;
-
-    background: #222;
-
-    border-bottom: 1px solid #333;
-}
-
-.grid {
-
-    display: grid;
-
-    grid-template-columns: 2fr 1fr;
-
-    gap: 10px;
-
-    padding: 10px;
-}
-
-.box {
-
-    background: #181818;
-
-    padding: 10px;
-
-    border-radius: 10px;
-}
-
-h3 {
-
-    margin-top: 0;
-}
-
-video {
-
-    width: 100%;
-
-    background: #000;
-
-    border-radius: 10px;
-
-    display: block;
-}
-
-#screen {
-
-    min-height: 300px;
-
-    max-height: 75vh;
-}
-
-#camera {
-
-    min-height: 200px;
-
-    max-height: 50vh;
-}
-
-@media(max-width:800px) {
-
-    .grid {
-
-        grid-template-columns: 1fr;
-    }
-}
-
+* { box-sizing: border-box; }
+body { font-family: Arial, sans-serif; margin: 0; background: #111; color: #eee; }
+header { padding: 14px; background: #1b1b1b; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+input, button { padding: 10px; border-radius: 8px; border: 1px solid #555; font-size: 15px; }
+button { cursor: pointer; background: #00bcd4; color: #fff; font-weight: bold; border: none; transition: 0.3s; }
+button:hover { background: #008ba3; }
+#status { padding: 12px; background: #222; border-bottom: 1px solid #333; color: #ff9800; font-weight: bold; }
+.grid { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; padding: 10px; }
+.box { background: #181818; padding: 10px; border-radius: 10px; }
+h3 { margin-top: 0; color: #00bcd4; }
+video { width: 100%; background: #000; border-radius: 10px; display: block; }
+#screenVideo { min-height: 300px; max-height: 75vh; }
+#cameraVideo { min-height: 200px; max-height: 50vh; }
+@media(max-width:800px) { .grid { grid-template-columns: 1fr; } }
 </style>
-
 </head>
-
 <body>
 
 <header>
-
-    <input
-        id="deviceId"
-        placeholder="Device ID"
-        value="tablet-a7-01"
-    >
-
-    <button id="connect">
-        اتصال
-    </button>
-
-    <button id="audio">
-        تشغيل الصوت
-    </button>
-
+    <input id="deviceId" placeholder="Device ID" value="tablet-a7-01">
+    <button id="connect">اتصال وبدء المراقبة</button>
 </header>
 
-<div id="status">
-    غير متصل
-</div>
+<div id="status">غير متصل</div>
 
 <div class="grid">
-
     <div class="box">
-
-        <h3>
-            الشاشة
-        </h3>
-
+        <h3>الشاشة</h3>
+        <!-- الفيديو صامت هنا لأن الصوت هيشتغل من عنصر الـ audio المخصص تحت -->
         <video id="screenVideo" autoplay playsinline muted></video>
-
     </div>
-
     <div class="box">
-
-        <h3>
-            الكاميرا الأمامية
-        </h3>
-
-        <video
-            id="camera"
-            autoplay
-            playsinline
-            muted
-        ></video>
-
+        <h3>الكاميرا الأمامية</h3>
+        <video id="cameraVideo" autoplay playsinline muted></video>
     </div>
-
 </div>
 
-<audio
-    id="remoteAudio"
-    autoplay
-></audio>
-
+<audio id="remoteAudio" autoplay></audio>
 
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-
-
 <script>
-
 let socket = null;
-
 let pc = null;
-
 let pendingCandidates = [];
 
-let connected = false;
+const statusDiv = document.getElementById("status");
+const screenVideo = document.getElementById("screenVideo");
+const cameraVideo = document.getElementById("cameraVideo");
+const remoteAudio = document.getElementById("remoteAudio");
 
-
-const statusDiv =
-    document.getElementById("status");
-
-const screenVideo =
-    document.getElementById("screen");
-
-const cameraVideo =
-    document.getElementById("camera");
-
-const remoteAudio =
-    document.getElementById("remoteAudio");
-
-
-const SERVER =
-    "https://signaling-server-1-zu27.onrender.com";
-
+const SERVER = "https://signaling-server-1-zu27.onrender.com";
 
 const rtcConfig = {
-
-    iceServers: [
-
-        {
-            urls:
-                "stun:stun.l.google.com:19302"
-        }
-
-        // لاحقاً يمكن إضافة TURN هنا
-    ]
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
 };
 
-
 function setStatus(text) {
-
     statusDiv.textContent = text;
-
     console.log("[STATUS]", text);
 }
 
-
-// =====================================
-// CREATE PEER CONNECTION
-// =====================================
-
 function createPeer() {
-
-    console.log("Creating RTCPeerConnection");
-
-    if (pc) {
-
-        try {
-            pc.close();
-        } catch (_) {}
-    }
-
+    if (pc) { try { pc.close(); } catch (_) {} }
     pendingCandidates = [];
-
-    pc = new RTCPeerConnection(
-        rtcConfig
-    );
-
-
-    // =================================
-    // REMOTE TRACK
-    // =================================
+    pc = new RTCPeerConnection(rtcConfig);
 
     pc.ontrack = async (event) => {
-
-        console.log(
-            "REMOTE TRACK:",
-            event.track.kind,
-            "id=",
-            event.track.id,
-            "streams=",
-            event.streams
-        );
-
-
-        const track =
-            event.track;
-
-
-        // ===============================
-        // VIDEO
-        // ===============================
-
+        const track = event.track;
         if (track.kind === "video") {
-
-            let stream;
-
-            if (
-                event.streams &&
-                event.streams.length > 0
-            ) {
-
-                stream =
-                    event.streams[0];
-
-            } else {
-
-                stream =
-                    new MediaStream([track]);
+            let stream = (event.streams && event.streams.length > 0) ? event.streams[0] : new MediaStream([track]);
+            
+            if (stream.id === "screenStream" || track.id === "screen") {
+                screenVideo.srcObject = stream;
             }
-
-
-            console.log(
-                "Video stream ID:",
-                stream.id
-            );
-
-
-            /*
-             * الجهاز عندنا يستخدم:
-             *
-             * cameraStream
-             * screenStream
-             */
-
-            if (
-                stream.id === "screenStream" ||
-                track.id === "screen"
-            ) {
-
-                console.log(
-                    ">>> SCREEN TRACK"
-                );
-
-                screenVideo.srcObject =
-                    stream;
-
-                try {
-
-                    await screenVideo.play();
-
-                } catch (e) {
-
-                    console.log(
-                        "Screen autoplay blocked"
-                    );
-                }
-
+            else if (stream.id === "cameraStream" || track.id === "camera") {
+                cameraVideo.srcObject = stream;
             }
-
-            else if (
-                stream.id === "cameraStream" ||
-                track.id === "camera"
-            ) {
-
-                console.log(
-                    ">>> CAMERA TRACK"
-                );
-
-                cameraVideo.srcObject =
-                    stream;
-
-                try {
-
-                    await cameraVideo.play();
-
-                } catch (e) {
-
-                    console.log(
-                        "Camera autoplay blocked"
-                    );
-                }
-
-            }
-
             else {
-
-                /*
-                 * fallback:
-                 * أول فيديو شاشة
-                 * ثاني فيديو كاميرا
-                 */
-
-                if (
-                    !screenVideo.srcObject
-                ) {
-
-                    console.log(
-                        "Fallback -> SCREEN"
-                    );
-
-                    screenVideo.srcObject =
-                        stream;
-
-                }
-
-                else if (
-                    !cameraVideo.srcObject
-                ) {
-
-                    console.log(
-                        "Fallback -> CAMERA"
-                    );
-
-                    cameraVideo.srcObject =
-                        stream;
-                }
+                if (!screenVideo.srcObject) screenVideo.srcObject = stream;
+                else if (!cameraVideo.srcObject) cameraVideo.srcObject = stream;
             }
         }
-
-
-        // ===============================
-        // AUDIO
-        // ===============================
 
         if (track.kind === "audio") {
-
-            console.log(
-                ">>> AUDIO TRACK"
-            );
-
-            const audioStream =
-                new MediaStream([track]);
-
-            remoteAudio.srcObject =
-                audioStream;
-
-            try {
-
-                await remoteAudio.play();
-
-                console.log(
-                    "Audio playing"
-                );
-
-            } catch (e) {
-
-                console.log(
-                    "Audio autoplay blocked"
-                );
-            }
+            remoteAudio.srcObject = new MediaStream([track]);
         }
     };
-
-
-    // =================================
-    // ICE
-    // =================================
 
     pc.onicecandidate = (event) => {
-
-        if (
-            event.candidate &&
-            socket &&
-            socket.connected
-        ) {
-
-            console.log(
-                "Sending ICE candidate"
-            );
-
-            socket.emit(
-                "message",
-                {
-                    type: "candidate",
-
-                    candidate:
-                        event.candidate.candidate,
-
-                    sdpMid:
-                        event.candidate.sdpMid,
-
-                    sdpMLineIndex:
-                        event.candidate.sdpMLineIndex
-                }
-            );
+        if (event.candidate && socket && socket.connected) {
+            socket.emit("message", {
+                type: "candidate",
+                candidate: event.candidate.candidate,
+                sdpMid: event.candidate.sdpMid,
+                sdpMLineIndex: event.candidate.sdpMLineIndex
+            });
         }
     };
-
-
-    // =================================
-    // CONNECTION STATE
-    // =================================
 
     pc.onconnectionstatechange = () => {
-
         if (!pc) return;
-
-        console.log(
-            "WebRTC state:",
-            pc.connectionState
-        );
-
-        setStatus(
-            "WebRTC: " +
-            pc.connectionState
-        );
-
-
-        if (
-            pc.connectionState ===
-            "connected"
-        ) {
-
-            setStatus(
-                "✅ تم الاتصال بالتابلت"
-            );
-        }
-
-
-        if (
-            pc.connectionState ===
-            "failed"
-        ) {
-
-            setStatus(
-                "❌ فشل اتصال WebRTC"
-            );
-        }
+        if (pc.connectionState === "connected") setStatus("✅ تم الاتصال بالتابلت وبدء البث بنجاح");
+        if (pc.connectionState === "failed") setStatus("❌ فشل اتصال WebRTC");
     };
-
-
-    // =================================
-    // ICE CONNECTION STATE
-    // =================================
-
-    pc.oniceconnectionstatechange =
-        () => {
-
-            if (!pc) return;
-
-            console.log(
-                "ICE:",
-                pc.iceConnectionState
-            );
-        };
 }
 
-
-// =====================================
-// ADD PENDING ICE
-// =====================================
-
 async function addPendingCandidates() {
-
-    if (!pc) return;
-
-    if (!pc.remoteDescription) {
-
-        return;
+    if (!pc || !pc.remoteDescription) return;
+    for (const candidate of pendingCandidates) {
+        try { await pc.addIceCandidate(candidate); } catch (e) {}
     }
-
-    for (
-        const candidate
-        of pendingCandidates
-    ) {
-
-        try {
-
-            await pc.addIceCandidate(
-                candidate
-            );
-
-        } catch (e) {
-
-            console.error(
-                "ICE error:",
-                e
-            );
-        }
-    }
-
     pendingCandidates = [];
 }
 
-
-// =====================================
-// HANDLE SIGNALING
-// =====================================
-
 async function handleMessage(data) {
-
-    console.log(
-        "MESSAGE:",
-        data
-    );
-
-
     try {
-
-        // ==============================
-        // VIEWER READY
-        // ==============================
-
-        if (
-            data.type ===
-            "viewer-ready"
-        ) {
-
-            console.log(
-                "Viewer is ready"
-            );
-
-            setStatus(
-                "التابلت متصل والـViewer جاهز"
-            );
-
-            return;
-        }
-
-
-        // ==============================
-        // OFFER
-        // ==============================
-
-        if (
-            data.type ===
-            "offer"
-        ) {
-
-            console.log(
-                "OFFER RECEIVED"
-            );
-
-            setStatus(
-                "استلام Offer..."
-            );
-
-
+        if (data.type === "offer") {
+            setStatus("استلام البث من التاب...");
             createPeer();
-
-
-            await pc.setRemoteDescription(
-                {
-                    type: "offer",
-                    sdp: data.sdp
-                }
-            );
-
-
-            console.log(
-                "Remote description set"
-            );
-
-
+            await pc.setRemoteDescription({ type: "offer", sdp: data.sdp });
             await addPendingCandidates();
-
-
-            const answer =
-                await pc.createAnswer();
-
-
-            console.log(
-                "Answer created"
-            );
-
-
-            await pc.setLocalDescription(
-                answer
-            );
-
-
-            console.log(
-                "Sending answer"
-            );
-
-
-            socket.emit(
-                "message",
-                {
-                    type: "answer",
-
-                    sdp:
-                        answer.sdp
-                }
-            );
-
-
-            setStatus(
-                "✅ تم إرسال Answer"
-            );
-
-
-            return;
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            socket.emit("message", { type: "answer", sdp: answer.sdp });
         }
-
-
-        // ==============================
-        // CANDIDATE
-        // ==============================
-
-        if (
-            data.type ===
-            "candidate"
-        ) {
-
-            const candidate =
-                new RTCIceCandidate(
-                    {
-                        candidate:
-                            data.candidate,
-
-                        sdpMid:
-                            data.sdpMid,
-
-                        sdpMLineIndex:
-                            data.sdpMLineIndex
-                    }
-                );
-
-
-            if (
-                pc &&
-                pc.remoteDescription
-            ) {
-
-                try {
-
-                    await pc.addIceCandidate(
-                        candidate
-                    );
-
-                    console.log(
-                        "ICE candidate added"
-                    );
-
-                } catch (e) {
-
-                    console.error(
-                        "ICE add error:",
-                        e
-                    );
-                }
-
+        else if (data.type === "candidate") {
+            const candidate = new RTCIceCandidate({
+                candidate: data.candidate,
+                sdpMid: data.sdpMid,
+                sdpMLineIndex: data.sdpMLineIndex
+            });
+            if (pc && pc.remoteDescription) {
+                try { await pc.addIceCandidate(candidate); } catch (e) {}
             } else {
-
-                console.log(
-                    "ICE queued"
-                );
-
-                pendingCandidates.push(
-                    candidate
-                );
+                pendingCandidates.push(candidate);
             }
-
-
-            return;
         }
-
-
-        // ==============================
-        // ERROR
-        // ==============================
-
-        if (
-            data.type ===
-            "error"
-        ) {
-
-            setStatus(
-                "خطأ: " +
-                data.message
-            );
+        else if (data.type === "error") {
+            setStatus("خطأ: " + data.message);
         }
-
     } catch (error) {
-
-        console.error(
-            "WebRTC ERROR:",
-            error
-        );
-
-        setStatus(
-            "❌ WebRTC Error: " +
-            error.message
-        );
+        setStatus("❌ WebRTC Error: " + error.message);
     }
 }
 
+document.getElementById("connect").onclick = () => {
+    const id = document.getElementById("deviceId").value.trim();
+    if (!id) return alert("اكتب Device ID");
 
-// =====================================
-// CONNECT BUTTON
-// =====================================
-
-document
-.getElementById("connect")
-.onclick = () => {
-
-    const id =
-        document
-        .getElementById("deviceId")
-        .value
-        .trim();
-
-
-    if (!id) {
-
-        alert(
-            "اكتب Device ID"
-        );
-
-        return;
-    }
-
-
-    if (socket) {
-
-        try {
-            socket.disconnect();
-        } catch (_) {}
-    }
-
-
-    setStatus(
-        "جاري الاتصال بالسيرفر..."
-    );
-
-
-    socket = io(
-        SERVER,
-        {
-            transports: [
-                "websocket",
-                "polling"
-            ]
-        }
-    );
-
-
-    // ==============================
-    // SOCKET CONNECTED
-    // ==============================
-
-    socket=io(
-    "https://signaling-server-1-zu27.onrender.com/",
-    {
-        transports:["websocket"]
-    }
-);
-
-socket.on("connect",()=>{
-
-    socket.emit("join",{
-        room:id,
-        role:"viewer"
+    // فك حظر المتصفح للصوت والفيديو بمجرد النقرة على زر الاتصال
+    [remoteAudio, screenVideo, cameraVideo].forEach(media => {
+        media.play().catch(e => console.log("تم تهيئة الميديا للاشتغال التلقائي"));
     });
 
-    setStatus(
-        "متصل بالسيرفر؛ في انتظار التاب..."
-    );
-});
+    if (socket) { try { socket.disconnect(); } catch (_) {} }
+    setStatus("جاري الاتصال بالسيرفر...");
 
-socket.on("message",handleMessage);
+    socket = io(SERVER, { transports: ["websocket"] });
 
-socket.on("disconnect",()=>{
+    socket.on("connect", () => {
+        socket.emit("join", { room: id, role: "viewer" });
+        socket.emit("message", { type: "viewer-ready" }); // إشعار التابلت للبدء
+        setStatus("متصل بالسيرفر؛ في انتظار التاب...");
+    });
 
-    setStatus(
-        "انقطع اتصال السيرفر"
-    );
-});
+    socket.on("message", handleMessage);
 
-
-    // ==============================
-    // ERROR
-    // ==============================
-
-    socket.on(
-        "connect_error",
-        (error) => {
-
-            console.error(
-                "Socket error:",
-                error
-            );
-
-            setStatus(
-                "❌ فشل الاتصال بالسيرفر"
-            );
-        }
-    );
+    socket.on("disconnect", () => setStatus("انقطع اتصال السيرفر"));
+    socket.on("connect_error", (error) => setStatus("❌ فشل الاتصال بالسيرفر"));
 };
-
-
-// =====================================
-// AUDIO BUTTON
-// =====================================
-
-document
-.getElementById("audio")
-.onclick = async () => {
-
-    try {
-
-        if (remoteAudio.srcObject) {
-
-            await remoteAudio.play();
-        }
-
-        if (screenVideo.srcObject) {
-
-            await screenVideo.play();
-        }
-
-        if (cameraVideo.srcObject) {
-
-            await cameraVideo.play();
-        }
-
-
-        setStatus(
-            "🔊 تم تشغيل الصوت"
-        );
-
-    } catch (error) {
-
-        console.error(
-            "Play error:",
-            error
-        );
-    }
-};
-
 </script>
-
 </body>
-
 </html>
